@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: activemq-shared-data
+  namespace: activemq
+spec:
+  accessModes:
+    - ReadWriteMany  # RWX 필수
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: nfs-client  # 클러스터 NFS StorageClass 이름

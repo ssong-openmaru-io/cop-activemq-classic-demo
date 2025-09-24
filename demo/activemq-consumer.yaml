@@ -1,0 +1,40 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: activemq-consumer
+  namespace: activemq
+spec:
+  restartPolicy: Never
+  serviceAccountName: activemq-sa
+  securityContext:
+    runAsUser: 1000
+    runAsGroup: 1000
+    fsGroup: 1000
+    seccompProfile:
+      type: RuntimeDefault
+  containers:
+    - name: consumer
+      image: apache/activemq-classic:5.19.0
+      env:
+        - name: ACTIVEMQ_USERNAME
+          value: "admin"
+        - name: ACTIVEMQ_PASSWORD 
+          value: "admin"
+        - name: ACTIVEMQ_BROKER_URI
+          value: "tcp://activemq.activemq.svc.cluster.local:61616"
+        - name: ACTIVEMQ_QUEUE
+          value: "queue://test.queue" 
+      command: ["/bin/sh", "-c"]
+      args:
+        - |
+          echo "=== Receiving test messages via ActiveMQ CLI ===" 
+          /opt/apache-activemq/bin/activemq consumer --user $ACTIVEMQ_USERNAME --password $ACTIVEMQ_PASSWORD \
+            --destination $ACTIVEMQ_QUEUE --brokerUrl $ACTIVEMQ_BROKER_URI
+          echo "=== Consumer Done ==="
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop: ["ALL"]
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault

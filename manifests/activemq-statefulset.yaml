@@ -1,0 +1,103 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: activemq
+  namespace: activemq
+spec:
+  serviceName: activemq
+  replicas: 1   # Master 1, Slave 1
+  selector:
+    matchLabels:
+      app: activemq
+  template:
+    metadata:
+      labels:
+        app: activemq
+    spec:
+      serviceAccountName: activemq-sa
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: activemq
+          image: apache/activemq-classic:5.19.0
+          ports:
+            - containerPort: 61616
+              name: openwire
+            - containerPort: 8161
+              name: web
+          env:
+            - name: ACTIVEMQ_OPTS
+              value: "-Djava.awt.headless=true"
+            - name: ACTIVEMQ_TMP
+              value: "/tmp"
+            - name: ACTIVEMQ_HOST
+              value: "0.0.0.0"
+          volumeMounts:
+            - name: activemq-config
+              mountPath: /opt/apache-activemq/conf/activemq.xml
+              subPath: activemq.xml
+            - name: activemq-config
+              mountPath: /opt/apache-activemq/conf/jetty.xml
+              subPath: jetty.xml
+            - name: activemq-credentials
+              mountPath: /opt/apache-activemq/conf/credentials.properties
+              subPath: credentials.properties
+            - name: activemq-shared-data
+              mountPath: /opt/apache-activemq/data
+            - name: activemq-tmp
+              mountPath: /opt/apache-activemq/data/tmp
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+          readinessProbe:
+            httpGet:
+              path: /api/jolokia/read/org.apache.activemq:type=Broker,brokerName=localhost,service=BrokerInfo
+              port: 8161
+              httpHeaders:
+                - name: Authorization
+                  value: Basic YWRtaW46YWRtaW4=  # base64(admin:admin)
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            timeoutSeconds: 3
+            successThreshold: 1
+            failureThreshold: 3
+          livenessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - ps aux | grep "[j]ava.*activemq" >/dev/null
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 5
+            successThreshold: 1
+            failureThreshold: 5
+      volumes:
+        - name: activemq-config
+          configMap:
+            name: activemq-config
+        - name: activemq-credentials
+          secret:
+            secretName: activemq-credentials 
+        - name: activemq-shared-data
+          persistentVolumeClaim:
+            claimName: activemq-shared-data
+        - name: activemq-tmp
+          emptyDir: {}
+  # volumeClaimTemplates:
+  #   - metadata:
+  #       name: activemq-shared-data
+  #     spec:
+  #       accessModes: ["ReadWriteMany"]   # RWX 필수
+  #       storageClassName: nfs-client  # 클러스터 NFS StorageClass 이름
+  #       resources:
+  #         requests:
+  #           storage: 10Gi

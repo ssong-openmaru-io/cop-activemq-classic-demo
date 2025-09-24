@@ -1,0 +1,43 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: api-producer
+  namespace: activemq
+spec:
+  restartPolicy: Never
+  serviceAccountName: activemq-sa
+  securityContext:
+    runAsUser: 1000
+    runAsGroup: 1000
+    fsGroup: 1000
+    seccompProfile:
+      type: RuntimeDefault
+  containers:
+    - name: producer
+      image: curlimages/curl:8.2.1
+      env:
+        - name: ACTIVEMQ_USERNAME
+          value: "admin"
+        - name: ACTIVEMQ_PASSWORD 
+          value: "admin"
+        - name: ACTIVEMQ_HOST
+          value: "activemq.activemq.svc.cluster.local"
+        - name: ACTIVEMQ_PORT
+          value: "8161"
+      command: ["/bin/sh", "-c"]
+      args:
+        - |
+          echo "=== Sending test messages ==="
+          for i in $(seq 1 100); do
+            curl -s -u $ACTIVEMQ_USERNAME:$ACTIVEMQ_PASSWORD -d "body=Message_$i" \
+              -X POST "http://$ACTIVEMQ_HOST:$ACTIVEMQ_PORT/api/message/test.queue?type=queue"
+            echo "Sent Message_$i"
+          done
+          echo "=== Producer Done ==="
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop: ["ALL"]
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault

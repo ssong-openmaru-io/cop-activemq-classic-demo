@@ -1,0 +1,30 @@
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: activemq-sa
+  namespace: activemq
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: activemq-role
+  namespace: activemq
+rules:
+  - apiGroups: [""]
+    resources: ["secrets", "configmaps", "persistentvolumeclaims"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: activemq-rolebinding
+  namespace: activemq
+subjects:
+  - kind: ServiceAccount
+    name: activemq-sa
+    namespace: activemq
+roleRef:
+  kind: Role
+  name: activemq-role
+  apiGroup: rbac.authorization.k8s.io
