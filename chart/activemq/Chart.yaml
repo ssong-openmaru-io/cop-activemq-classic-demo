@@ -1,0 +1,12 @@
+apiVersion: v2
+name: activemq
+description: A Helm chart for deploying Apache ActiveMQ Classic
+type: application
+version: 0.1.0
+appVersion: "5.19.0"
+keywords:
+  - activemq
+  - messaging
+maintainers:
+  - name: ssong
+    email: ssong@example.com

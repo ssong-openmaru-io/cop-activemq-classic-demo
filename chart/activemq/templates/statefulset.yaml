@@ -1,0 +1,95 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "activemq.fullname" . }}
+spec:
+  serviceName: {{ include "activemq.fullname" . }}
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ include "activemq.fullname" . }}
+  template:
+    metadata:
+      labels:
+        app: {{ include "activemq.fullname" . }}
+    spec:
+      serviceAccountName: {{ .Values.serviceAccount.name | default (include "activemq.fullname" .) }}
+      securityContext:
+        runAsUser: {{ .Values.securityContext.runAsUser }}
+        runAsGroup: {{ .Values.securityContext.runAsGroup }}
+        fsGroup: {{ .Values.securityContext.fsGroup }}
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: activemq
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.service.ports.openwire }}
+              name: openwire
+            - containerPort: {{ .Values.service.ports.web }}
+              name: web
+          env:
+            - name: ACTIVEMQ_OPTS
+              value: "-Djava.awt.headless=true"
+            - name: ACTIVEMQ_TMP
+              value: "/tmp"
+            - name: ACTIVEMQ_HOST
+              value: "0.0.0.0"
+          volumeMounts:
+            - name: activemq-config
+              mountPath: /opt/apache-activemq/conf/activemq.xml
+              subPath: activemq.xml
+            - name: activemq-config
+              mountPath: /opt/apache-activemq/conf/jetty.xml
+              subPath: jetty.xml
+            - name: activemq-credentials
+              mountPath: /opt/apache-activemq/conf/credentials.properties
+              subPath: credentials.properties
+            - name: activemq-shared-data
+              mountPath: /opt/apache-activemq/data
+            - name: activemq-tmp
+              mountPath: /opt/apache-activemq/data/tmp
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+          readinessProbe:
+            httpGet:
+              path: /api/jolokia/read/org.apache.activemq:type=Broker,brokerName=localhost,service=BrokerInfo
+              port: {{ .Values.service.ports.web }}
+              httpHeaders:
+                - name: Authorization
+                  value: Basic {{ "YWRtaW46YWRtaW4=" }}
+            initialDelaySeconds: {{ .Values.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.readinessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.readinessProbe.timeoutSeconds }}
+            successThreshold: 1
+            failureThreshold: 3
+          livenessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - ps aux | grep "[j]ava.*activemq" >/dev/null
+            initialDelaySeconds: {{ .Values.livenessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.livenessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.livenessProbe.timeoutSeconds }}
+            successThreshold: 1
+            failureThreshold: 5
+      volumes:
+        - name: activemq-config
+          configMap:
+            name: {{ include "activemq.fullname" . }}-config
+        - name: activemq-credentials
+          secret:
+            secretName: {{ include "activemq.fullname" . }}-credentials
+        - name: activemq-shared-data
+          persistentVolumeClaim:
+            claimName: {{ .Values.persistence.existingClaim | default (include "activemq.fullname" .) }}
+        - name: activemq-tmp
+          emptyDir: {}
+  volumeClaimTemplates: []

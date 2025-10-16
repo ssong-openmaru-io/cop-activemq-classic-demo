@@ -1,0 +1,13 @@
+{{- if .Values.persistence.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Values.persistence.existingClaim | default (include "activemq.fullname" .) }}
+spec:
+  accessModes:
+    - {{ .Values.persistence.accessMode | default "ReadWriteMany" }}
+  resources:
+    requests:
+      storage: {{ .Values.persistence.size }}
+  storageClassName: {{ .Values.persistence.storageClass }}
+{{- end }}
